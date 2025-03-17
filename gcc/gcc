@@ -1,0 +1,4 @@
+clear
+var0=$1
+var1=${var0%.*}
+gcc $var0 -m32 -o $var1
