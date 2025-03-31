@@ -1,44 +1,56 @@
 section .data
-    array1 db 1, 2, 3, 4, 5       
-    array2 db 10, 20, 30, 40, 50  
-    len equ $ - array1            
-    newline db 10                 
+    n       equ 12                ; Количество элементов
+    A       dd  123,2,33,214,5,546,74,8,39,10,-87,15   ; Первый массив
+    B       dd  10,20,30,40,50,60,70,80,90,100,110,120 ; Второй массив
+    sOut    db  '000000',0        ; Строка для печати
+    iOut    dd  6                 ; Макс. символов в строке
 
 section .bss
-    result resb len              
+    C       resd n                ; Результирующий массив (C[i] = A[i] + B[i])
 
 section .text
     global _start
+    extern  E_printTab
+    extern  E_printEnter
+    extern  E_printNumber
 
 _start:
-    mov rsi, 0                     
-    
-sum_loop:
-    cmp rsi, len                   
-    je print_result                
+    mov     esi, 0                ; Индекс i = 0
 
-    mov al, [array1 + rsi]         
-    add al, [array2 + rsi]         
-    mov [result + rsi], al         
+L_sum_loop:
+    cmp     esi, n                ; Если i >= n, завершаем
+    jge     L_print_result
 
-    inc rsi                        
-    jmp sum_loop                   
+    mov     eax, [A + esi*4]      ; Загружаем A[i]
+    add     eax, [B + esi*4]      ; A[i] + B[i]
+    mov     [C + esi*4], eax      ; Сохраняем в C[i]
 
-print_result:
-    mov rdx, len                  
-    mov rsi, result                
-    mov rdi, 1                      
-    mov rax, 1                      
-    syscall
+    inc     esi                   ; i++
+    jmp     L_sum_loop            ; Повторяем цикл
 
-    ; Выводим перевод строки
-    mov rdx, 1
-    mov rsi, newline
-    mov rdi, 1
-    mov rax, 1
-    syscall
+L_print_result:
+    mov     esi, C                ; База массива C
+    mov     ecx, n                ; Количество элементов
+    call    P_print               ; Вывести массив C
+    call    E_printEnter          ; Перевод строки
 
-exit:
-    mov rax, 60                     
-    xor rdi, rdi                    
-    syscall
+L_exit:
+    mov     eax, 1                ; Выход
+    xor     ebx, ebx
+    int     80h
+
+P_print:
+    xor     ebx, ebx              ; i = 0
+L_print_00:
+    push    esi
+    push    ebx
+    push    ecx    
+    push    dword [esi + ebx*4]   ; C[i]
+    call    E_printNumber         ; Печать числа
+    pop     ecx
+    pop     ebx
+    pop     esi
+    inc     ebx
+    loop    L_print_00
+    call    E_printEnter
+    ret
