@@ -1,0 +1,44 @@
+section .data
+    array1 db 1, 2, 3, 4, 5       
+    array2 db 10, 20, 30, 40, 50  
+    len equ $ - array1            
+    newline db 10                 
+
+section .bss
+    result resb len              
+
+section .text
+    global _start
+
+_start:
+    mov rsi, 0                     
+    
+sum_loop:
+    cmp rsi, len                   
+    je print_result                
+
+    mov al, [array1 + rsi]         
+    add al, [array2 + rsi]         
+    mov [result + rsi], al         
+
+    inc rsi                        
+    jmp sum_loop                   
+
+print_result:
+    mov rdx, len                  
+    mov rsi, result                
+    mov rdi, 1                      
+    mov rax, 1                      
+    syscall
+
+    ; Выводим перевод строки
+    mov rdx, 1
+    mov rsi, newline
+    mov rdi, 1
+    mov rax, 1
+    syscall
+
+exit:
+    mov rax, 60                     
+    xor rdi, rdi                    
+    syscall
