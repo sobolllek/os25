@@ -1,72 +1,72 @@
 section .data
-    input_filename db 'input.txt', 0
-    output_filename db 'output.txt', 0
-    buffer resb 512       ; буфер для данных
+    input_filename db 'input.txt', 0    ; имя исходного файла
+    output_filename db 'output.txt', 0 ; имя выходного файла
+    buffer resb 512                    ; буфер для чтения данных
 
 section .bss
-    filesize resq 1       ; переменная под размер файла
+    filesize resq 1                    ; переменная под размер файла
 
 section .text
     global _start
 
 _start:
-    ; 1. Открыть input.txt (O_RDONLY = 0)
-    mov rax, 2              ; sys_open
-    lea rdi, [rel input_filename]
-    xor rsi, rsi            ; O_RDONLY
+    ; --- Открыть input.txt (O_RDONLY = 0) ---
+    mov rax, 2              ; cSYS_OPEN
+    lea rdi, [input_filename] ; имя файла
+    xor rsi, rsi            ; O_RDONLY = 0
     syscall
-    mov r12, rax            ; сохранить дескриптор input файла
+    mov r12, rax            ; сохранить дескриптор файла
 
-    ; 2. Узнать размер файла: lseek(fd, 0, SEEK_END)
-    mov rax, 8              ; sys_lseek
-    mov rdi, r12            ; fd
-    xor rsi, rsi            ; offset = 0
+    ; --- Узнать размер файла: lseek(fd, 0, SEEK_END) ---
+    mov rax, 8              ; cSYS_LSEEK
+    mov rdi, r12            ; дескриптор файла
+    xor rsi, rsi            ; смещение 0
     mov rdx, 2              ; SEEK_END
     syscall
     mov [filesize], rax     ; сохранить размер файла
-    mov r13, rax            ; сохранить в регистре тоже
+    mov r13, rax            ; размер файла также в регистре
 
-    ; 3. Установить указатель в начало (lseek(fd, 0, SEEK_SET))
-    mov rax, 8
-    mov rdi, r12
-    xor rsi, rsi
+    ; --- Установить указатель в начало (SEEK_SET = 0) ---
+    mov rax, 8              ; cSYS_LSEEK
+    mov rdi, r12            ; дескриптор файла
+    xor rsi, rsi            ; смещение 0
     xor rdx, rdx            ; SEEK_SET = 0
     syscall
 
-    ; 4. Читать r13 байт
-    mov rax, 0              ; sys_read
-    mov rdi, r12
-    lea rsi, [rel buffer]
-    mov rdx, r13
+    ; --- Прочитать r13 байт ---
+    mov rax, 0              ; cSYS_READ
+    mov rdi, r12            ; дескриптор файла
+    lea rsi, [buffer]       ; адрес буфера
+    mov rdx, r13            ; количество байт для чтения
     syscall
-    ; RAX теперь содержит фактически прочитанное количество байт
+    ; RAX содержит количество реально прочитанных байт
 
-    ; 5. Закрыть input файл
-    mov rax, 3              ; sys_close
+    ; --- Закрыть input файл ---
+    mov rax, 3              ; cSYS_CLOSE
     mov rdi, r12
     syscall
 
-    ; 6. Открыть output.txt (O_WRONLY | O_CREAT | O_TRUNC = 577)
-    mov rax, 2              ; sys_open
-    lea rdi, [rel output_filename]
-    mov rsi, 577            ; флаги
+    ; --- Создать output.txt (O_WRONLY | O_CREAT | O_TRUNC = 577) ---
+    mov rax, 2              ; cSYS_OPEN
+    lea rdi, [output_filename] ; имя файла
+    mov rsi, 577            ; флаги (O_WRONLY | O_CREAT | O_TRUNC)
     mov rdx, 0644           ; права доступа
     syscall
     mov r14, rax            ; сохранить дескриптор output файла
 
-    ; 7. Записать r13 байт
-    mov rax, 1              ; sys_write
-    mov rdi, r14
-    lea rsi, [rel buffer]
-    mov rdx, r13
+    ; --- Записать r13 байт ---
+    mov rax, 1              ; cSYS_WRITE
+    mov rdi, r14            ; дескриптор файла
+    lea rsi, [buffer]       ; адрес буфера
+    mov rdx, r13            ; количество байт для записи
     syscall
 
-    ; 8. Закрыть output файл
-    mov rax, 3              ; sys_close
+    ; --- Закрыть output файл ---
+    mov rax, 3              ; cSYS_CLOSE
     mov rdi, r14
     syscall
 
-    ; 9. Завершение
-    mov rax, 60             ; sys_exit
+    ; --- Завершение программы ---
+    mov rax, 60             ; cSYS_EXIT
     xor rdi, rdi            ; код возврата 0
     syscall
