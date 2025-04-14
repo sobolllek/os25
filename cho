@@ -1,72 +1,91 @@
+; nasm -f elf32 filecopy.asm
+; ld -m elf_i386 filecopy.o -o filecopy
+
 section .data
-    input_filename db 'input.txt', 0    ; имя исходного файла
-    output_filename db 'output.txt', 0 ; имя выходного файла
-    buffer resb 512                    ; буфер для чтения данных
+    cSYS_EXIT      equ 0x01
+    cSYS_READ      equ 0x03
+    cSYS_WRITE     equ 0x04
+    cSYS_OPEN      equ 0x05
+    cSYS_CLOSE     equ 0x06
+    cSYS_LSEEK     equ 0x13
+    cSYS_CREAT     equ 0x08
+
+    cO_WRONLY      equ 0x01
+    cO_CREAT       equ 0x40
+    cO_TRUNC       equ 0x200
+    cWRITE_FLAGS   equ cO_WRONLY | cO_CREAT | cO_TRUNC
+
+    SEEK_SET       equ 0x00
+    SEEK_END       equ 0x02
+
+    file_in        db 'input.txt', 0
+    file_out       db 'output.txt', 0
 
 section .bss
-    filesize resq 1                    ; переменная под размер файла
+    buffer         resb 512
+    fd_in          resd 1
+    fd_out         resd 1
+    file_len       resd 1
 
 section .text
     global _start
 
 _start:
-    ; --- Открыть input.txt (O_RDONLY = 0) ---
-    mov rax, 2              ; cSYS_OPEN
-    lea rdi, [input_filename] ; имя файла
-    xor rsi, rsi            ; O_RDONLY = 0
-    syscall
-    mov r12, rax            ; сохранить дескриптор файла
 
-    ; --- Узнать размер файла: lseek(fd, 0, SEEK_END) ---
-    mov rax, 8              ; cSYS_LSEEK
-    mov rdi, r12            ; дескриптор файла
-    xor rsi, rsi            ; смещение 0
-    mov rdx, 2              ; SEEK_END
-    syscall
-    mov [filesize], rax     ; сохранить размер файла
-    mov r13, rax            ; размер файла также в регистре
+; --- open input file ---
+    mov     eax, cSYS_OPEN
+    mov     ebx, file_in
+    xor     ecx, ecx             ; O_RDONLY = 0
+    int     0x80
+    mov     [fd_in], eax
 
-    ; --- Установить указатель в начало (SEEK_SET = 0) ---
-    mov rax, 8              ; cSYS_LSEEK
-    mov rdi, r12            ; дескриптор файла
-    xor rsi, rsi            ; смещение 0
-    xor rdx, rdx            ; SEEK_SET = 0
-    syscall
+; --- seek to end ---
+    mov     eax, cSYS_LSEEK
+    mov     ebx, [fd_in]
+    xor     ecx, ecx
+    mov     edx, SEEK_END
+    int     0x80
+    mov     [file_len], eax
 
-    ; --- Прочитать r13 байт ---
-    mov rax, 0              ; cSYS_READ
-    mov rdi, r12            ; дескриптор файла
-    lea rsi, [buffer]       ; адрес буфера
-    mov rdx, r13            ; количество байт для чтения
-    syscall
-    ; RAX содержит количество реально прочитанных байт
+; --- seek to start ---
+    mov     eax, cSYS_LSEEK
+    mov     ebx, [fd_in]
+    xor     ecx, ecx
+    xor     edx, edx
+    int     0x80
 
-    ; --- Закрыть input файл ---
-    mov rax, 3              ; cSYS_CLOSE
-    mov rdi, r12
-    syscall
+; --- read file ---
+    mov     eax, cSYS_READ
+    mov     ebx, [fd_in]
+    mov     ecx, buffer
+    mov     edx, [file_len]
+    int     0x80
 
-    ; --- Создать output.txt (O_WRONLY | O_CREAT | O_TRUNC = 577) ---
-    mov rax, 2              ; cSYS_OPEN
-    lea rdi, [output_filename] ; имя файла
-    mov rsi, 577            ; флаги (O_WRONLY | O_CREAT | O_TRUNC)
-    mov rdx, 0644           ; права доступа
-    syscall
-    mov r14, rax            ; сохранить дескриптор output файла
+; --- close input ---
+    mov     eax, cSYS_CLOSE
+    mov     ebx, [fd_in]
+    int     0x80
 
-    ; --- Записать r13 байт ---
-    mov rax, 1              ; cSYS_WRITE
-    mov rdi, r14            ; дескриптор файла
-    lea rsi, [buffer]       ; адрес буфера
-    mov rdx, r13            ; количество байт для записи
-    syscall
+; --- create output file ---
+    mov     eax, cSYS_CREAT
+    mov     ebx, file_out
+    mov     ecx, 0x1A4           ; 0644 = rw-r--r--
+    int     0x80
+    mov     [fd_out], eax
 
-    ; --- Закрыть output файл ---
-    mov rax, 3              ; cSYS_CLOSE
-    mov rdi, r14
-    syscall
+; --- write to output file ---
+    mov     eax, cSYS_WRITE
+    mov     ebx, [fd_out]
+    mov     ecx, buffer
+    mov     edx, [file_len]
+    int     0x80
 
-    ; --- Завершение программы ---
-    mov rax, 60             ; cSYS_EXIT
-    xor rdi, rdi            ; код возврата 0
-    syscall
+; --- close output ---
+    mov     eax, cSYS_CLOSE
+    mov     ebx, [fd_out]
+    int     0x80
+
+; --- exit(0) ---
+    mov     eax, cSYS_EXIT
+    xor     ebx, ebx
+    int     0x80
