@@ -1,56 +1,72 @@
 section .data
-    n       equ 12                ; Количество элементов
-    A       dd  123,2,33,214,5,546,74,8,39,10,-87,15   ; Первый массив
-    B       dd  10,20,30,40,50,60,70,80,90,100,110,120 ; Второй массив
-    sOut    db  '000000',0        ; Строка для печати
-    iOut    dd  6                 ; Макс. символов в строке
+    input_filename db 'input.txt', 0
+    output_filename db 'output.txt', 0
+    buffer resb 512       ; буфер для данных
 
 section .bss
-    C       resd n                ; Результирующий массив (C[i] = A[i] + B[i])
+    filesize resq 1       ; переменная под размер файла
 
 section .text
     global _start
-    extern  E_printTab
-    extern  E_printEnter
-    extern  E_printNumber
 
 _start:
-    mov     esi, 0                ; Индекс i = 0
+    ; 1. Открыть input.txt (O_RDONLY = 0)
+    mov rax, 2              ; sys_open
+    lea rdi, [rel input_filename]
+    xor rsi, rsi            ; O_RDONLY
+    syscall
+    mov r12, rax            ; сохранить дескриптор input файла
 
-L_sum_loop:
-    cmp     esi, n                ; Если i >= n, завершаем
-    jge     L_print_result
+    ; 2. Узнать размер файла: lseek(fd, 0, SEEK_END)
+    mov rax, 8              ; sys_lseek
+    mov rdi, r12            ; fd
+    xor rsi, rsi            ; offset = 0
+    mov rdx, 2              ; SEEK_END
+    syscall
+    mov [filesize], rax     ; сохранить размер файла
+    mov r13, rax            ; сохранить в регистре тоже
 
-    mov     eax, [A + esi*4]      ; Загружаем A[i]
-    add     eax, [B + esi*4]      ; A[i] + B[i]
-    mov     [C + esi*4], eax      ; Сохраняем в C[i]
+    ; 3. Установить указатель в начало (lseek(fd, 0, SEEK_SET))
+    mov rax, 8
+    mov rdi, r12
+    xor rsi, rsi
+    xor rdx, rdx            ; SEEK_SET = 0
+    syscall
 
-    inc     esi                   ; i++
-    jmp     L_sum_loop            ; Повторяем цикл
+    ; 4. Читать r13 байт
+    mov rax, 0              ; sys_read
+    mov rdi, r12
+    lea rsi, [rel buffer]
+    mov rdx, r13
+    syscall
+    ; RAX теперь содержит фактически прочитанное количество байт
 
-L_print_result:
-    mov     esi, C                ; База массива C
-    mov     ecx, n                ; Количество элементов
-    call    P_print               ; Вывести массив C
-    call    E_printEnter          ; Перевод строки
+    ; 5. Закрыть input файл
+    mov rax, 3              ; sys_close
+    mov rdi, r12
+    syscall
 
-L_exit:
-    mov     eax, 1                ; Выход
-    xor     ebx, ebx
-    int     80h
+    ; 6. Открыть output.txt (O_WRONLY | O_CREAT | O_TRUNC = 577)
+    mov rax, 2              ; sys_open
+    lea rdi, [rel output_filename]
+    mov rsi, 577            ; флаги
+    mov rdx, 0644           ; права доступа
+    syscall
+    mov r14, rax            ; сохранить дескриптор output файла
 
-P_print:
-    xor     ebx, ebx              ; i = 0
-L_print_00:
-    push    esi
-    push    ebx
-    push    ecx    
-    push    dword [esi + ebx*4]   ; C[i]
-    call    E_printNumber         ; Печать числа
-    pop     ecx
-    pop     ebx
-    pop     esi
-    inc     ebx
-    loop    L_print_00
-    call    E_printEnter
-    ret
+    ; 7. Записать r13 байт
+    mov rax, 1              ; sys_write
+    mov rdi, r14
+    lea rsi, [rel buffer]
+    mov rdx, r13
+    syscall
+
+    ; 8. Закрыть output файл
+    mov rax, 3              ; sys_close
+    mov rdi, r14
+    syscall
+
+    ; 9. Завершение
+    mov rax, 60             ; sys_exit
+    xor rdi, rdi            ; код возврата 0
+    syscall
